@@ -6,6 +6,7 @@ import com.cinema.repository.TicketRepository;
 import com.cinema.repository.MovieRepository;
 import org.springframework.stereotype.Service;
 
+
 import java.util.List;
 
 @Service
