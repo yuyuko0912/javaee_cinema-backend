@@ -10,7 +10,7 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/movies")
-@CrossOrigin(origins = "http://localhost:8081") // 允许前端访问
+@CrossOrigin(origins = "http://localhost:5173") // 允许前端访问
 public class MovieController {
 
     private final MovieService movieService;
