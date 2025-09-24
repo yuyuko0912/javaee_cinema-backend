@@ -30,5 +30,8 @@ VALUES
     (4,5,'张宏'),
     (7,2,'谢茜');
 
+# 更新数据库图片存储路径。
+UPDATE movie SET film_img = CONCAT('/', film_img) WHERE film_img NOT LIKE '/%';
+SELECT id, name, film_img FROM movie;
 
 
