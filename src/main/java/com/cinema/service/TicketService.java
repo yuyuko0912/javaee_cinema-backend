@@ -8,28 +8,61 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+/**
+ * 票务领域业务服务。
+ * <p>
+ * 负责查票、占座校验、每人每场限购 5 张等业务规则，并持久化票务记录。
+ * </p>
+ *
+ * @author cinema
+ */
 @Service
 public class TicketService {
+
+    /** 同一购票人在单场电影中允许持有的最大票数 */
+    private static final int MAX_TICKETS_PER_BUYER_PER_MOVIE = 5;
 
     private final TicketRepository ticketRepository;
     private final MovieRepository movieRepository;
 
+    /**
+     * @param ticketRepository 票务数据访问层
+     * @param movieRepository  电影数据访问层（校验场次是否存在）
+     */
     public TicketService(TicketRepository ticketRepository, MovieRepository movieRepository) {
         this.ticketRepository = ticketRepository;
         this.movieRepository = movieRepository;
     }
 
-    // 根据电影查询票
+    /**
+     * 查询指定场次的全部已售票。
+     *
+     * @param movieId 电影（场次）主键
+     * @return 票务列表
+     */
     public List<Ticket> getTicketsByMovie(Long movieId) {
         return ticketRepository.findByMovie_Id(movieId);
     }
 
-    // 保存票
+    /**
+     * 保存或更新票务实体。
+     *
+     * @param ticket 票务
+     * @return 持久化后的实体
+     */
     public Ticket saveTicket(Ticket ticket) {
         return ticketRepository.save(ticket);
     }
 
-    // 买票逻辑：检查座位是否被占用 → 保存
+    /**
+     * 购买单张票：校验场次、座位占用及限购后写入数据库。
+     *
+     * @param movieId    电影 ID
+     * @param seatNumber 座位号（1–100）
+     * @param buyerName  购票人姓名（用于限购统计）
+     * @return 新建的票务
+     * @throws RuntimeException 电影不存在、座位已占用或超出限购
+     */
     public Ticket buyTicket(Long movieId, int seatNumber, String buyerName) {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("电影不存在"));
@@ -41,12 +74,11 @@ public class TicketService {
             throw new RuntimeException("座位已被占用");
         }
 
-        // 检查该用户在本场电影中已购买的票数
         int purchasedCount = (int) ticketRepository.findByMovie_Id(movieId).stream()
                 .filter(t -> t.getBuyerName().equals(buyerName))
                 .count();
 
-        if (purchasedCount >= 5) {
+        if (purchasedCount >= MAX_TICKETS_PER_BUYER_PER_MOVIE) {
             throw new RuntimeException("每场电影最多只能购买5张票");
         }
 
@@ -58,29 +90,35 @@ public class TicketService {
         return ticketRepository.save(ticket);
     }
 
-    // 批量买票逻辑：一次最多购买5个座位
+    /**
+     * 批量购票：单次最多 5 个座位，且与已有票数合计不超过每人每场 5 张。
+     *
+     * @param movieId     电影 ID
+     * @param seatNumbers 座位号列表
+     * @param buyerName   购票人姓名
+     * @return 成功创建的全部票务
+     * @throws RuntimeException 参数为空、超量、电影不存在、任一座位已占用或超出限购
+     */
     public List<Ticket> buyTicketsBatch(Long movieId, List<Integer> seatNumbers, String buyerName) {
         if (seatNumbers == null || seatNumbers.isEmpty()) {
             throw new RuntimeException("请选择座位");
         }
 
-        if (seatNumbers.size() > 5) {
+        if (seatNumbers.size() > MAX_TICKETS_PER_BUYER_PER_MOVIE) {
             throw new RuntimeException("一次最多只能购买5个座位");
         }
 
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("电影不存在"));
 
-        // 检查该用户在本场电影中已购买的票数
         int purchasedCount = (int) ticketRepository.findByMovie_Id(movieId).stream()
                 .filter(t -> t.getBuyerName().equals(buyerName))
                 .count();
 
-        if (purchasedCount + seatNumbers.size() > 5) {
+        if (purchasedCount + seatNumbers.size() > MAX_TICKETS_PER_BUYER_PER_MOVIE) {
             throw new RuntimeException("每场电影最多只能购买5张票，您已购买" + purchasedCount + "张");
         }
 
-        // 检查座位是否被占用
         List<Ticket> existingTickets = ticketRepository.findByMovie_Id(movieId);
         for (Integer seatNumber : seatNumbers) {
             boolean occupied = existingTickets.stream()
@@ -90,7 +128,6 @@ public class TicketService {
             }
         }
 
-        // 保存所有票
         return seatNumbers.stream()
                 .map(seatNumber -> {
                     Ticket ticket = new Ticket();

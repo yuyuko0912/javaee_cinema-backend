@@ -2,33 +2,48 @@ package com.cinema.entity;
 
 import jakarta.persistence.*;
 
+/**
+ * 票务实体，对应数据库表 {@code ticket}。
+ * <p>
+ * 一张票绑定一个场次（{@link Movie}）和一个座位号，并记录购票人姓名。
+ * </p>
+ *
+ * @author cinema
+ */
 @Entity
 @Table(name = "ticket")
 public class Ticket {
+
+    /** 主键，自增 */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // 多张票对应一部电影
+    /** 所属场次；多票对应一场电影 */
     @ManyToOne
     @JoinColumn(name = "movie_id", nullable = false)
     private Movie movie;
 
-    // 座位号（示例：1-100 的整数）
+    /** 座位编号，业务约定为 1–100 的整数 */
     private int seatNumber;
 
-    // 买票人姓名（也可以改成 userId，看你需求）
+    /** 购票人姓名，用于展示及每人每场限购统计 */
     private String buyerName;
 
+    /** JPA 要求的无参构造 */
     public Ticket() {}
 
+    /**
+     * @param movie      所属场次
+     * @param seatNumber 座位号
+     * @param buyerName  购票人
+     */
     public Ticket(Movie movie, int seatNumber, String buyerName) {
         this.movie = movie;
         this.seatNumber = seatNumber;
         this.buyerName = buyerName;
     }
 
-    // --- Getter & Setter ---
     public Long getId() {
         return id;
     }
