@@ -4,49 +4,74 @@ import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
+/**
+ * 电影（场次）实体，对应数据库表 {@code movie}。
+ * <p>
+ * 一条记录表示某影院某厅的一次放映场次，包含片名、海报、时长、票价等信息。
+ * </p>
+ *
+ * @author cinema
+ */
 @Entity
 @Table(name = "movie")
 public class Movie {
+
+    /** 主键，自增 */
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    /** 中文片名 */
     private String name;
 
+    /** 英文片名 */
     @Column(name = "name_english")
     private String nameEnglish;
 
+    /** 版权/发行信息 */
     @Column(name = "copy_right")
     private String copyRight;
 
+    /** 海报图片 URL */
     @Column(name = "film_img")
     private String filmImg;
 
+    /** 影片类型（如动作、喜剧） */
     @Column(name = "story_type")
     private String storyType;
 
+    /** 地区/产地 */
     private String place;
 
+    /** 片长，单位：分钟 */
     @Column(name = "time_length")
-    private Integer timeLength;  // 分钟数
+    private Integer timeLength;
 
+    /** 上映日期 */
     @Column(name = "time_show")
-    private LocalDate timeShow;  // 上映日期
+    private LocalDate timeShow;
 
+    /** 影院名称 */
     private String cinema;
 
+    /** 影厅名称或编号 */
     private String room;
 
+    /** 本场放映开始时间 */
     @Column(name = "show_time")
-    private LocalDateTime showTime;  // 场次具体时间
+    private LocalDateTime showTime;
 
+    /** 单张票价 */
     @Column(name = "unit_price")
     private Double unitPrice;
 
-    // ===== 构造方法 =====
+    /** JPA 要求的无参构造 */
     public Movie() {
     }
 
+    /**
+     * 便于测试或手工构造场次的全参构造（不含 id）。
+     */
     public Movie(String name, String nameEnglish, String copyRight, String filmImg,
                  String storyType, String place, Integer timeLength, LocalDate timeShow,
                  String cinema, String room, LocalDateTime showTime, Double unitPrice) {
@@ -64,7 +89,6 @@ public class Movie {
         this.unitPrice = unitPrice;
     }
 
-    // ===== Getter 和 Setter =====
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -104,7 +128,6 @@ public class Movie {
     public Double getUnitPrice() { return unitPrice; }
     public void setUnitPrice(Double unitPrice) { this.unitPrice = unitPrice; }
 
-    // ===== toString =====
     @Override
     public String toString() {
         return "Movie{" +
