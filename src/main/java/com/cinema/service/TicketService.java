@@ -4,8 +4,11 @@ import com.cinema.entity.Ticket;
 import com.cinema.entity.Movie;
 import com.cinema.repository.TicketRepository;
 import com.cinema.repository.MovieRepository;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -56,6 +59,9 @@ public class TicketService {
 
     /**
      * 购买单张票：校验场次、座位占用及限购后写入数据库。
+     * <p>
+     * 使用事务 + 数据库唯一约束（场次+座位）防止并发双卖。
+     * </p>
      *
      * @param movieId    电影 ID
      * @param seatNumber 座位号（1–100）
@@ -63,21 +69,16 @@ public class TicketService {
      * @return 新建的票务
      * @throws RuntimeException 电影不存在、座位已占用或超出限购
      */
+    @Transactional
     public Ticket buyTicket(Long movieId, int seatNumber, String buyerName) {
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("电影不存在"));
 
-        boolean occupied = ticketRepository.findByMovie_Id(movieId).stream()
-                .anyMatch(t -> t.getSeatNumber() == seatNumber);
-
-        if (occupied) {
+        if (ticketRepository.existsByMovie_IdAndSeatNumber(movieId, seatNumber)) {
             throw new RuntimeException("座位已被占用");
         }
 
-        int purchasedCount = (int) ticketRepository.findByMovie_Id(movieId).stream()
-                .filter(t -> t.getBuyerName().equals(buyerName))
-                .count();
-
+        int purchasedCount = ticketRepository.countByMovie_IdAndBuyerName(movieId, buyerName);
         if (purchasedCount >= MAX_TICKETS_PER_BUYER_PER_MOVIE) {
             throw new RuntimeException("每场电影最多只能购买5张票");
         }
@@ -87,11 +88,18 @@ public class TicketService {
         ticket.setSeatNumber(seatNumber);
         ticket.setBuyerName(buyerName);
 
-        return ticketRepository.save(ticket);
+        try {
+            return ticketRepository.save(ticket);
+        } catch (DataIntegrityViolationException e) {
+            throw new RuntimeException("座位已被占用");
+        }
     }
 
     /**
      * 批量购票：单次最多 5 个座位，且与已有票数合计不超过每人每场 5 张。
+     * <p>
+     * 整批在同一事务内提交，任一步失败则全部回滚。
+     * </p>
      *
      * @param movieId     电影 ID
      * @param seatNumbers 座位号列表
@@ -99,6 +107,7 @@ public class TicketService {
      * @return 成功创建的全部票务
      * @throws RuntimeException 参数为空、超量、电影不存在、任一座位已占用或超出限购
      */
+    @Transactional
     public List<Ticket> buyTicketsBatch(Long movieId, List<Integer> seatNumbers, String buyerName) {
         if (seatNumbers == null || seatNumbers.isEmpty()) {
             throw new RuntimeException("请选择座位");
@@ -108,34 +117,36 @@ public class TicketService {
             throw new RuntimeException("一次最多只能购买5个座位");
         }
 
+        if (seatNumbers.size() != new HashSet<>(seatNumbers).size()) {
+            throw new RuntimeException("不能重复选择同一座位");
+        }
+
         Movie movie = movieRepository.findById(movieId)
                 .orElseThrow(() -> new RuntimeException("电影不存在"));
 
-        int purchasedCount = (int) ticketRepository.findByMovie_Id(movieId).stream()
-                .filter(t -> t.getBuyerName().equals(buyerName))
-                .count();
-
+        int purchasedCount = ticketRepository.countByMovie_IdAndBuyerName(movieId, buyerName);
         if (purchasedCount + seatNumbers.size() > MAX_TICKETS_PER_BUYER_PER_MOVIE) {
             throw new RuntimeException("每场电影最多只能购买5张票，您已购买" + purchasedCount + "张");
         }
 
-        List<Ticket> existingTickets = ticketRepository.findByMovie_Id(movieId);
         for (Integer seatNumber : seatNumbers) {
-            boolean occupied = existingTickets.stream()
-                    .anyMatch(t -> t.getSeatNumber() == seatNumber);
-            if (occupied) {
+            if (ticketRepository.existsByMovie_IdAndSeatNumber(movieId, seatNumber)) {
                 throw new RuntimeException("座位 " + seatNumber + " 已被占用");
             }
         }
 
-        return seatNumbers.stream()
-                .map(seatNumber -> {
-                    Ticket ticket = new Ticket();
-                    ticket.setMovie(movie);
-                    ticket.setSeatNumber(seatNumber);
-                    ticket.setBuyerName(buyerName);
-                    return ticketRepository.save(ticket);
-                })
-                .toList();
+        try {
+            return seatNumbers.stream()
+                    .map(seatNumber -> {
+                        Ticket ticket = new Ticket();
+                        ticket.setMovie(movie);
+                        ticket.setSeatNumber(seatNumber);
+                        ticket.setBuyerName(buyerName);
+                        return ticketRepository.save(ticket);
+                    })
+                    .toList();
+        } catch (DataIntegrityViolationException e) {
+            throw new RuntimeException("部分座位已被其他人购买，请刷新后重选");
+        }
     }
 }

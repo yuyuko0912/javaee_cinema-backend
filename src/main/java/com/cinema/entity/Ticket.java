@@ -11,7 +11,13 @@ import jakarta.persistence.*;
  * @author cinema
  */
 @Entity
-@Table(name = "ticket")
+@Table(
+        name = "ticket",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_movie_seat",
+                columnNames = {"movie_id", "seat_number"}
+        )
+)
 public class Ticket {
 
     /** 主键，自增 */
